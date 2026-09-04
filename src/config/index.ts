@@ -1,4 +1,6 @@
+import 'dotenv/config'; 
 import { z } from 'zod';
+
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -7,6 +9,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1).default('postgres://urlshort:urlshort@localhost:5432/urlshort'),
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(32).optional(), // used in Phase 3
+  BASE_URL: z.string().default('http://localhost:3000'), // set to your domain in prod
 });
 
 const parsed = envSchema.safeParse(process.env);

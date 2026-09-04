@@ -9,7 +9,8 @@
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "migrate": "node-pg-migrate -m src/db/migrations up",
+    "migrate": "tsx src/db/migrate.ts up",
+    "migrate:down": "tsx src/db/migrate.ts down",
     "db:up": "docker compose up -d postgres redis",
     "db:down": "docker compose down"
   },
