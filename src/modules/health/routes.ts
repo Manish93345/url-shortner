@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { pool } from '../../db/pool';
-import { redis } from '../../plugins/redis';
+import { redis, withTimeout } from '../../plugins/redis';
 
 const healthRoutes: FastifyPluginAsync = async (app) => {
   // Liveness: process is up. Never touches dependencies.
@@ -9,8 +9,8 @@ const healthRoutes: FastifyPluginAsync = async (app) => {
   // Readiness: dependencies are up. Blue-green deploy polls THIS in Phase 8.
   app.get('/ready', async (_req, reply) => {
     const [pgResult, redisResult] = await Promise.allSettled([
-      pool.query('SELECT 1'),
-      redis.ping(),
+      withTimeout(pool.query('SELECT 1'), 2_000),
+      withTimeout(redis.ping(), 1_000),
     ]);
 
     const checks = {

@@ -1,5 +1,6 @@
 import { pool } from '../db/pool';
-import { redis } from '../plugins/redis';
+import { redis, withTimeout } from '../plugins/redis';
+const REDIS_OP_TIMEOUT_MS = 100; 
 
 const URL_TTL_SECONDS = 24 * 60 * 60; // positive cache: 24h
 const NEG_TTL_SECONDS = 60;           // negative cache: 60s — defends against
@@ -39,11 +40,13 @@ async function doResolve(code: string): Promise<ResolveResult> {
   // One round trip for both keys (MGET, not two GETs).
   let cached: string | null;
   let negative: string | null;
-  try {
-    [cached, negative] = await redis.mget(urlKey(code), negKey(code));
+   try {
+    [cached, negative] = await withTimeout(
+      redis.mget(urlKey(code), negKey(code)),
+      REDIS_OP_TIMEOUT_MS,
+    );
   } catch {
-    // Fail open: Redis unavailable → bypass cache entirely, serve from PG.
-    // Shortener keeps working (degraded); we just lose the latency win.
+    // Timeout or Redis down → serve from Postgres (fail open)
     console.warn('Redis unavailable during resolve — falling back to Postgres');
     cached = null;
     negative = null;
