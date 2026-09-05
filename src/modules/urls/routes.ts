@@ -2,21 +2,15 @@ import { FastifyPluginAsync } from 'fastify';
 import { config } from '../../config';
 import { createUrlSchema } from './schemas';
 import { createShortUrl } from './service';
+import { requireAuth, rateLimit } from '../auth/middleware';
+import { validationError } from '../../lib/httpError';
 
 const urlRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/api/urls', async (req, reply) => {
+  app.post('/api/urls', { preHandler: [requireAuth, rateLimit] }, async (req, reply) => {
     const parsed = createUrlSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        error: 'Validation failed',
-        details: parsed.error.issues.map((i) => ({
-          field: i.path.join('.'),
-          message: i.message,
-        })),
-      });
-    }
+    if (!parsed.success) throw validationError(parsed.error);
 
-    const shortUrl = await createShortUrl(parsed.data.url);
+    const shortUrl = await createShortUrl(parsed.data.url, req.auth!.userId);
 
     return reply.code(201).send({
       ...shortUrl,

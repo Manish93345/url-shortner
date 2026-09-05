@@ -22,7 +22,7 @@ async function getDevUserId(): Promise<string> {
 }
 
 export async function createShortUrl(originalUrl: string): Promise<ShortUrl> {
-  const [id, userId] = await Promise.all([idGenerator.nextId(), getDevUserId()]);
+  const id = await idGenerator.nextId();
   const shortCode = encodeBase62(id);
 
   const { rows } = await pool.query<{

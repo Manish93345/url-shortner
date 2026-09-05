@@ -1,7 +1,7 @@
 import { buildApp } from './app';
 import { config } from './config';
 import { pool } from './db/pool';
-import { redis } from './plugins/redis';
+import { redis, withTimeout } from './plugins/redis';
 
 async function main() {
   const app = await buildApp();
@@ -24,6 +24,13 @@ async function main() {
       })();
     });
   }
+
+  // Forces the Redis handshake and first PG connection to complete before
+// request #1 arrives — eliminates the first-request fallback race we just saw.
+await Promise.allSettled([
+  withTimeout(redis.ping(), 2_000),
+  withTimeout(pool.query('SELECT 1'), 2_000),
+]);
 
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   app.log.info(`🚀 Server listening on :${config.PORT} (${config.NODE_ENV})`);
