@@ -4,121 +4,465 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shortr — URL Shortener</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%236366f1'/><text x='50' y='70' font-size='50' text-anchor='middle'>🔗</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
-  :root { --bg:#0b1020; --card:#141b2e; --text:#e5e7eb; --muted:#94a3b8;
-          --accent:#6366f1; --accent2:#22d3ee; --border:#232d4a; }
+  :root {
+    --bg:#0a0e1a; --card:rgba(19,25,44,.75); --border:#222c4d; --border-hi:#2e3a63;
+    --text:#e7eaf3; --muted:#8e9ab5; --accent:#6366f1; --accent2:#22d3ee;
+    --ok:#34d399; --bad:#f87171; --chip:#1b2440;
+  }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text);
-         background:radial-gradient(1100px 550px at 15% -10%, #1e2650 0%, var(--bg) 55%);
-         min-height:100vh; padding:40px 16px; }
-  .wrap { max-width:760px; margin:0 auto; }
-  h1 { font-size:28px; } .sub { color:var(--muted); margin-bottom:24px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:14px;
-          padding:20px; margin-bottom:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
-  input { width:100%; background:#0e1526; border:1px solid #2a3654; color:var(--text);
-          border-radius:9px; padding:11px 13px; font-size:14px; outline:none; }
-  input:focus { border-color:var(--accent); }
-  .row { display:flex; gap:10px; }
-  button { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:0;
-           color:#fff; font-weight:600; border-radius:9px; padding:11px 16px;
-           cursor:pointer; font-size:14px; white-space:nowrap; }
-  button.ghost { background:transparent; border:1px solid #2a3654; color:var(--muted); }
-  button:hover { filter:brightness(1.15); }
-  .err { color:#f87171; font-size:13px; margin-top:8px; min-height:16px; }
-  .item { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid #1d2742; }
-  .item:first-child { border-top:0; }
-  .link { color:var(--accent2); font-weight:600; text-decoration:none; white-space:nowrap; }
-  .orig { color:var(--muted); font-size:13px; flex:1; overflow:hidden;
-          text-overflow:ellipsis; white-space:nowrap; }
-  .clicks { background:#1d2742; border-radius:999px; padding:3px 10px; font-size:12px; }
-  .hide { display:none; }
-  .logout { float:right; margin-bottom:10px; }
+  html { scrollbar-gutter:stable; }
+  body {
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--text); min-height:100vh; padding-bottom:60px;
+    background:radial-gradient(900px 480px at 12% -8%, #1d2650 0%, transparent 60%),
+               radial-gradient(800px 420px at 95% 0%, #103b4a 0%, transparent 55%),
+               var(--bg);
+  }
+  .hidden { display:none !important; }
+
+  /* ---------- nav ---------- */
+  nav { display:flex; align-items:center; justify-content:space-between;
+        max-width:880px; margin:0 auto; padding:20px 16px 0; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:17px; letter-spacing:.2px; }
+  .logo { width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+          background:linear-gradient(135deg,var(--accent),var(--accent2)); font-size:15px; }
+  .health { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted);
+            background:var(--chip); border:1px solid var(--border); padding:6px 12px; border-radius:999px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#64748b; }
+  .dot.ok { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .dot.bad { background:var(--bad); box-shadow:0 0 8px var(--bad); }
+
+  main { max-width:880px; margin:0 auto; padding:0 16px; }
+
+  /* ---------- auth ---------- */
+  .auth-wrap { animation:fadeUp .5s ease both; }
+  .hero { text-align:center; margin:64px 0 34px; }
+  .hero h1 { font-size:clamp(30px,5vw,44px); font-weight:800; letter-spacing:-.5px; }
+  .grad { background:linear-gradient(90deg,var(--accent),var(--accent2));
+          -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p { color:var(--muted); margin-top:12px; font-size:15px; }
+  .auth-card { width:min(400px,100%); margin:0 auto; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px;
+          padding:22px; backdrop-filter:blur(8px); box-shadow:0 16px 40px rgba(0,0,0,.35); }
+  .tabs { display:grid; grid-template-columns:1fr 1fr; background:#0d1326;
+          border:1px solid var(--border); border-radius:10px; padding:4px; margin-bottom:18px; }
+  .tab { background:transparent; border:0; color:var(--muted); padding:9px; border-radius:7px;
+         font-weight:600; font-size:13.5px; cursor:pointer; }
+  .tab.active { background:var(--accent); color:#fff; }
+  label { display:block; font-size:12.5px; color:var(--muted); margin:12px 0 6px; font-weight:600; }
+  input { width:100%; background:#0d1326; border:1px solid var(--border); color:var(--text);
+          border-radius:10px; padding:12px 14px; font-size:14px; outline:none; transition:border .15s; }
+  input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+
+  .btn { border:0; cursor:pointer; font-weight:650; border-radius:10px; font-size:14px;
+         padding:12px 18px; color:#fff; transition:filter .15s, transform .05s; }
+  .btn:active { transform:scale(.98); }
+  .btn:disabled { opacity:.6; cursor:wait; }
+  .primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+  .ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .ghost:hover { border-color:var(--border-hi); color:var(--text); }
+  .btn:hover { filter:brightness(1.12); }
+  .full { width:100%; margin-top:18px; }
+  .err { color:var(--bad); font-size:13px; margin-top:10px; min-height:18px; }
+
+  /* ---------- dashboard ---------- */
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin:34px 0 18px; }
+  .topbar h1 { font-size:24px; letter-spacing:-.3px; }
+  .create-card { animation:fadeUp .4s ease both; }
+  .create-row { display:flex; gap:10px; }
+  .create-row input { flex:1; }
+  .result { margin-top:14px; border:1px dashed var(--border-hi); border-radius:12px;
+            padding:14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+            background:#0d1326; animation:fadeUp .3s ease both; }
+  .result .short { font-weight:700; color:var(--accent2); text-decoration:none; font-size:15px; }
+  .result .spacer { flex:1; }
+
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:14px;
+          padding:16px 18px; text-align:center; }
+  .stat-num { font-size:26px; font-weight:800; letter-spacing:-.5px; }
+  .stat-label { color:var(--muted); font-size:12px; margin-top:4px; text-transform:uppercase; letter-spacing:.6px; }
+
+  .list-card { animation:fadeUp .5s ease both; }
+  .list-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .live { color:var(--ok); font-size:12px; display:flex; align-items:center; gap:5px; }
+  .live .dot { animation:pulse 2s infinite; }
+  .list-head .btn { margin-left:auto; padding:7px 12px; font-size:12.5px; }
+
+  .row { display:grid; grid-template-columns:minmax(150px,220px) 1fr auto auto;
+         gap:12px; align-items:center; padding:13px 4px; border-top:1px solid #1a2340; }
+  .row:first-child { border-top:0; }
+  .row:hover { background:rgba(99,102,241,.05); }
+  .short-link { color:var(--accent2); font-weight:650; text-decoration:none; font-size:14px; }
+  .short-link:hover { text-decoration:underline; }
+  .orig { color:var(--muted); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .meta { display:flex; align-items:center; gap:10px; }
+  .clicks { background:var(--chip); border:1px solid var(--border); border-radius:999px;
+            padding:4px 11px; font-size:12px; white-space:nowrap; }
+  .clicks.bump { animation:bump .7s ease; }
+  .ago { color:#5b687f; font-size:11.5px; }
+  .icon-btn { background:transparent; border:1px solid var(--border); color:var(--muted);
+              border-radius:8px; padding:6px 9px; cursor:pointer; font-size:13px; }
+  .icon-btn:hover { color:var(--text); border-color:var(--border-hi); }
+  .icon-btn.danger:hover { color:var(--bad); border-color:var(--bad); }
+  .empty { text-align:center; color:var(--muted); padding:34px 0; font-size:14px; }
+
+  /* ---------- modal & toasts ---------- */
+  .modal { position:fixed; inset:0; background:rgba(5,8,18,.7); backdrop-filter:blur(4px);
+           display:grid; place-items:center; z-index:50; }
+  .modal-card { background:var(--card); border:1px solid var(--border); border-radius:16px;
+                padding:22px; text-align:center; animation:fadeUp .25s ease both; }
+  .modal-card canvas { border-radius:10px; background:#fff; padding:8px; }
+  .modal-card p { margin:12px 0 16px; font-size:13px; color:var(--accent2); font-weight:650; }
+  #toasts { position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:60; }
+  .toast { background:#141c33; border:1px solid var(--border-hi); border-left:3px solid var(--accent2);
+           color:var(--text); padding:11px 16px; border-radius:10px; font-size:13.5px;
+           box-shadow:0 10px 30px rgba(0,0,0,.4); animation:fadeUp .25s ease both; }
+  .toast.err { border-left-color:var(--bad); }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @keyframes bump { 0%,100% { transform:scale(1); } 40% { transform:scale(1.25); background:rgba(52,211,153,.25); } }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+
+  @media (max-width:640px) {
+    .row { grid-template-columns:1fr auto; }
+    .orig { display:none; }
+    .stats { grid-template-columns:1fr; }
+    .create-row { flex-direction:column; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🔗 Shortr</h1>
-  <p class="sub">Distributed URL shortener — live demo dashboard</p>
 
-  <div id="auth" class="card hide">
-    <div class="row">
-      <input id="email" placeholder="email" autocomplete="username">
-      <input id="password" type="password" placeholder="password (min 8 chars)">
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button id="register">Create account</button>
-      <button id="login">Sign in</button>
-    </div>
-    <div class="err" id="authErr"></div>
-  </div>
+<nav>
+  <div class="brand"><span class="logo">🔗</span> Shortr</div>
+  <div class="health" id="health" title="GET /health/ready"><span class="dot" id="healthDot"></span><span id="healthText">checking…</span></div>
+</nav>
 
-  <div id="app" class="hide">
-    <button id="logout" class="ghost logout">Log out</button>
-    <div class="card">
-      <div class="row">
-        <input id="url" placeholder="https://example.com/your/very/long/link">
-        <button id="create">Shorten</button>
+<main>
+  <!-- ================= AUTH ================= -->
+  <section id="viewAuth" class="hidden">
+    <div class="hero">
+      <h1>Short links. <span class="grad">Serious infrastructure.</span></h1>
+      <p>Block-allocated IDs · Redis-cached redirects · sliding-window rate limiting · real-time analytics</p>
+    </div>
+    <div class="card auth-card">
+      <div class="tabs">
+        <button class="tab active" id="tabSignin">Sign in</button>
+        <button class="tab" id="tabSignup">Create account</button>
+      </div>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="min 8 characters">
+      <button class="btn primary full" id="authBtn">Sign in</button>
+      <div class="err" id="authErr"></div>
+    </div>
+  </section>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section id="viewDash" class="hidden">
+    <div class="topbar">
+      <h1>Dashboard</h1>
+      <button class="btn ghost" id="logout">Log out</button>
+    </div>
+
+    <div class="card create-card">
+      <div class="create-row">
+        <input id="url" placeholder="Paste a long URL — https://example.com/very/long/path?with=params">
+        <button class="btn primary" id="createBtn">Shorten</button>
       </div>
       <div class="err" id="createErr"></div>
+      <div class="result hidden" id="result">
+        <a class="short" id="resultLink" target="_blank" rel="noopener"></a>
+        <span class="spacer"></span>
+        <button class="btn ghost" id="resultCopy">Copy</button>
+        <button class="btn ghost" id="resultQr">QR</button>
+      </div>
     </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between; margin-bottom:8px">
-        <b>Your links</b><button id="refresh" class="ghost">Refresh</button>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-num" id="statLinks">0</div><div class="stat-label">Your links</div></div>
+      <div class="stat"><div class="stat-num" id="statClicks">0</div><div class="stat-label">Total clicks</div></div>
+      <div class="stat"><div class="stat-num" id="statRL">—</div><div class="stat-label">Rate limit left/min</div></div>
+    </div>
+
+    <div class="card list-card">
+      <div class="list-head">
+        <b>Your links</b>
+        <span class="live"><span class="dot ok"></span>live</span>
+        <button class="btn ghost" id="refreshBtn">Refresh</button>
       </div>
       <div id="list"></div>
     </div>
+  </section>
+</main>
+
+<!-- QR modal -->
+<div class="modal hidden" id="qrModal">
+  <div class="modal-card">
+    <canvas id="qrCanvas"></canvas>
+    <p id="qrText"></p>
+    <button class="btn ghost" id="qrClose">Close</button>
   </div>
 </div>
 
+<div id="toasts"></div>
+
 <script>
-  let token = localStorage.getItem('token') || null;
-  const $ = (id) => document.getElementById(id);
+/* ---------------- state & helpers ---------------- */
+let token = localStorage.getItem('token');
+let mode = 'signin';
+let items = [];
+const lastClicks = {};      // code -> previous count (for bump animation)
+let rl = { limit: null, remaining: null };
 
-  async function req(path, opts = {}) {
-    const res = await fetch(path, { ...opts,
-      headers: { 'Content-Type': 'application/json',
-                 ...(token ? { Authorization: 'Bearer ' + token } : {}) } });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw { status: res.status, body };
-    return body;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, isErr = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); }
+  catch {
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
   }
+  toast('Copied to clipboard');
+}
 
-  function showAuth() { $('auth').classList.remove('hide'); $('app').classList.add('hide'); }
-  async function showApp() {
-    $('auth').classList.add('hide'); $('app').classList.remove('hide');
-    try { await loadUrls(); }
-    catch (e) { if (e.status === 401) { token = null; localStorage.removeItem('token'); showAuth(); } }
+function timeAgo(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+
+/* ---------------- API ---------------- */
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json',
+               ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+  });
+  const limit = res.headers.get('X-RateLimit-Limit');
+  const remaining = res.headers.get('X-RateLimit-Remaining');
+  if (limit && remaining !== null) {
+    rl = { limit: +limit, remaining: +remaining };
+    renderStats();
   }
-
-  async function saveToken(b) { token = b.token; localStorage.setItem('token', token); showApp(); }
-  $('register').onclick = async () => { try { await saveToken(await req('/auth/register',
-    { method:'POST', body: JSON.stringify({ email:$('email').value, password:$('password').value }) })); }
-    catch (e) { $('authErr').textContent = e.body?.details?.[0]?.message || e.body?.error || 'Failed'; } };
-  $('login').onclick = async () => { try { await saveToken(await req('/auth/login',
-    { method:'POST', body: JSON.stringify({ email:$('email').value, password:$('password').value }) })); }
-    catch (e) { $('authErr').textContent = e.body?.error || 'Login failed'; } };
-  $('logout').onclick = () => { token = null; localStorage.removeItem('token'); showAuth(); };
-
-  $('create').onclick = async () => {
-    $('createErr').textContent = '';
-    try { await req('/api/urls', { method:'POST', body: JSON.stringify({ url:$('url').value }) });
-          $('url').value = ''; loadUrls(); }
-    catch (e) { $('createErr').textContent = e.body?.details?.[0]?.message || e.body?.error || 'Failed'; }
-  };
-
-  async function loadUrls() {
-    const b = await req('/api/urls');
-    $('list').innerHTML = b.items.map(i => `
-      <div class="item">
-        <a class="link" href="/${i.shortCode}" target="_blank">${location.origin}/${i.shortCode}</a>
-        <span class="orig" title="${i.originalUrl}">${i.originalUrl}</span>
-        <span class="clicks">${i.clicks} clicks</span>
-        <button class="ghost" onclick="navigator.clipboard.writeText('${location.origin}/${i.shortCode}')">Copy</button>
-      </div>`).join('') || '<p class="sub">No URLs yet — create one above.</p>';
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Expired/invalid session → back to auth (but not for login attempts)
+    if (res.status === 401 && path.startsWith('/api/')) {
+      token = null; localStorage.removeItem('token'); showAuth();
+    }
+    throw { status: res.status, body };
   }
-  $('refresh').onclick = loadUrls;
+  return body;
+}
 
-  token ? showApp() : showAuth();
+/* ---------------- views ---------------- */
+function showAuth() {
+  $('viewDash').classList.add('hidden');
+  $('viewAuth').classList.remove('hidden');
+  $('email').focus();
+}
+
+function showDash() {
+  $('viewAuth').classList.add('hidden');
+  $('viewDash').classList.remove('hidden');
+  loadUrls();
+}
+
+/* ---------------- auth ---------------- */
+function setMode(m) {
+  mode = m;
+  $('tabSignin').classList.toggle('active', m === 'signin');
+  $('tabSignup').classList.toggle('active', m === 'signup');
+  $('authBtn').textContent = m === 'signin' ? 'Sign in' : 'Create account';
+  $('authErr').textContent = '';
+}
+ $('tabSignin').onclick = () => setMode('signin');
+ $('tabSignup').onclick = () => setMode('signup');
+
+async function doAuth() {
+  $('authErr').textContent = '';
+  const btn = $('authBtn');
+  btn.disabled = true;
+  try {
+    const path = mode === 'signin' ? '/auth/login' : '/auth/register';
+    const body = await api(path, {
+      method: 'POST',
+      body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value }),
+    });
+    token = body.token;
+    localStorage.setItem('token', token);
+    showDash();
+  } catch (e) {
+    const d = e.body?.details?.[0]?.message;
+    $('authErr').textContent = d || e.body?.error || 'Something went wrong';
+  } finally {
+    btn.disabled = false;
+  }
+}
+ $('authBtn').onclick = doAuth;
+ $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth(); });
+
+ $('logout').onclick = () => {
+  token = null; localStorage.removeItem('token');
+  items = []; Object.keys(lastClicks).forEach(k => delete lastClicks[k]);
+  showAuth();
+};
+
+/* ---------------- create ---------------- */
+async function createUrl() {
+  $('createErr').textContent = '';
+  $('result').classList.add('hidden');
+  const btn = $('createBtn');
+  btn.disabled = true; btn.textContent = 'Shortening…';
+  try {
+    const b = await api('/api/urls', {
+      method: 'POST',
+      body: JSON.stringify({ url: $('url').value.trim() }),
+    });
+    $('url').value = '';
+    $('resultLink').textContent = b.shortUrl.replace(/^https?:\/\//, '');
+    $('resultLink').href = b.shortUrl;
+    $('resultLink').dataset.url = b.shortUrl;
+    $('result').classList.remove('hidden');
+    toast('Short URL created: ' + b.shortCode);
+    await loadUrls();
+  } catch (e) {
+    const d = e.body?.details?.[0]?.message;
+    const retry = e.body?.retryAfterSec ? ` — retry in ${e.body.retryAfterSec}s` : '';
+    $('createErr').textContent = (d || e.body?.error || 'Failed') + retry;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Shorten';
+  }
+}
+ $('createBtn').onclick = createUrl;
+ $('url').addEventListener('keydown', (e) => { if (e.key === 'Enter') createUrl(); });
+ $('resultCopy').onclick = () => copyText($('resultLink').dataset.url);
+ $('resultQr').onclick = () => openQr($('resultLink').dataset.url);
+
+/* ---------------- list ---------------- */
+async function loadUrls() {
+  try {
+    const b = await api('/api/urls');
+    const prev = items;
+    items = b.items;
+    renderList();
+    // flash rows whose click count increased since last render
+    for (const it of items) {
+      const before = prev.find(p => p.shortCode === it.shortCode)?.clicks ?? it.clicks;
+      if (it.clicks > before) {
+        const el = document.querySelector(`[data-clicks="${it.shortCode}"]`);
+        if (el) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+      }
+      lastClicks[it.shortCode] = it.clicks;
+    }
+    renderStats();
+  } catch { /* 401 handled in api() */ }
+}
+
+function renderList() {
+  const list = $('list');
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">No links yet — shorten your first URL above ↑</div>';
+    return;
+  }
+  list.innerHTML = items.map(i => {
+    const code = esc(i.shortCode);
+    const short = esc(location.origin + '/' + i.shortCode);
+    return `
+    <div class="row">
+      <a class="short-link" href="/${code}" target="_blank" rel="noopener">${short}</a>
+      <span class="orig" title="${esc(i.originalUrl)}">${esc(i.originalUrl)}</span>
+      <span class="meta">
+        <span class="ago">${timeAgo(i.createdAt)}</span>
+        <span class="clicks" data-clicks="${code}">${i.clicks} ${i.clicks === 1 ? 'click' : 'clicks'}</span>
+      </span>
+      <span class="meta">
+        <button class="icon-btn" title="Copy" onclick="uiCopy('${short}')">⧉</button>
+        <button class="icon-btn" title="QR code" onclick="uiQr('${short}')">▣</button>
+        <button class="icon-btn danger" title="Delete" onclick="uiDelete('${code}')">🗑</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+/* handlers referenced from rendered HTML (escape-safe: code matches [0-9a-zA-Z]) */
+window.uiCopy = (u) => copyText(u);
+window.uiQr = (u) => openQr(u);
+window.uiDelete = async (code) => {
+  if (!confirm(`Delete /${code}? This cannot be undone.`)) return;
+  try {
+    await api('/api/urls/' + code, { method: 'DELETE' });
+    toast('Deleted /' + code);
+    await loadUrls();
+  } catch (e) { toast(e.body?.error || 'Delete failed', true); }
+};
+
+function renderStats() {
+  $('statLinks').textContent = items.length;
+  $('statClicks').textContent = items.reduce((a, i) => a + i.clicks, 0);
+  $('statRL').textContent = rl.remaining !== null ? `${rl.remaining}` : '—';
+  $('statRL').title = rl.limit ? `of ${rl.limit} per minute` : 'updates after you create a link';
+}
+ $('refreshBtn').onclick = loadUrls;
+
+/* live polling — pause when tab is hidden */
+setInterval(() => {
+  if (token && document.visibilityState === 'visible' && !$('viewDash').classList.contains('hidden')) {
+    loadUrls();
+  }
+}, 8000);
+
+/* ---------------- QR ---------------- */
+function openQr(url) {
+  if (typeof QRCode === 'undefined') { toast('QR library unavailable (CDN blocked)', true); return; }
+  $('qrText').textContent = url;
+  $('qrModal').classList.remove('hidden');
+  QRCode.toCanvas($('qrCanvas'), url, { width: 220, margin: 1 }, (err) => {
+    if (err) { toast('QR generation failed', true); $('qrModal').classList.add('hidden'); }
+  });
+}
+ $('qrClose').onclick = () => $('qrModal').classList.add('hidden');
+ $('qrModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('qrModal').classList.add('hidden'); });
+
+/* ---------------- health badge ---------------- */
+async function checkHealth() {
+  const dot = $('healthDot'), txt = $('healthText');
+  try {
+    const r = await fetch('/health/ready');
+    const b = await r.json();
+    const ok = b.status === 'ok';
+    dot.className = 'dot ' + (ok ? 'ok' : 'bad');
+    const down = Object.entries(b.checks || {}).filter(([, v]) => v !== 'ok').map(([k]) => k);
+    txt.textContent = ok ? 'All systems operational' : 'Degraded: ' + down.join(', ');
+  } catch {
+    dot.className = 'dot bad';
+    txt.textContent = 'API unreachable';
+  }
+}
+setInterval(checkHealth, 15000);
+
+/* ---------------- boot ---------------- */
+checkHealth();
+token ? showDash() : showAuth();
 </script>
 </body>
 </html>

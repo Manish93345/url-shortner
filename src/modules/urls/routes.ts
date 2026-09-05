@@ -3,7 +3,7 @@ import { config } from '../../config';
 import { pool } from '../../db/pool';
 import { redis, withTimeout } from '../../plugins/redis';
 import { createUrlSchema } from './schemas';
-import { createShortUrl } from './service';
+import { createShortUrl, deleteShortUrl } from './service';
 import { requireAuth, rateLimit } from '../auth/middleware';
 import { validationError } from '../../lib/httpError';
 
@@ -17,6 +17,13 @@ const urlRoutes: FastifyPluginAsync = async (app) => {
       ...shortUrl,
       shortUrl: `${config.BASE_URL}/${shortUrl.shortCode}`,
     });
+  });
+
+  app.delete('/api/urls/:code', { preHandler: [requireAuth] }, async (req, reply) => {
+    const { code } = req.params as { code: string };
+    const deleted = await deleteShortUrl(code, req.auth!.userId);
+    if (!deleted) return reply.code(404).send({ error: 'Not found' });
+    return reply.code(204).send();
   });
 
   // List the authenticated user's URLs with live click counts (demo dashboard)
