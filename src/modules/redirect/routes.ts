@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { resolveRedirect } from '../../services/cache';
+import { redis, withTimeout } from '../../plugins/redis';
 
 const CODE_PATTERN = /^[0-9a-zA-Z]{1,10}$/;
 
@@ -12,16 +13,18 @@ const redirectRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const result = await resolveRedirect(code);
-
-    // Observability: lets you (and load tests) verify cache behavior.
     reply.header('X-Cache', result.cache);
 
     if (!result.found) {
       return reply.code(404).send({ error: 'Short URL not found' });
     }
 
-    // 302, never 301 — browsers permanently cache 301s and stop
-    // consulting us, silently killing click analytics.
+    // Real-time click counter — fire-and-forget (never blocks the redirect).
+    // This is the "stats-lite" version; the full stream→worker pipeline comes later.
+    void withTimeout(redis.hincrby('stats:clicks', code, 1), 100).catch(() => {});
+
+    // 302, never 301 — browsers permanently cache 301s and stop consulting us,
+    // which would silently kill click analytics.
     return reply.redirect(result.originalUrl!, 302);
   });
 };

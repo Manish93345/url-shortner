@@ -6,7 +6,12 @@ import { config } from '../../config';
 import { HttpError } from '../../lib/httpError';
 
 // OWASP-recommended argon2id parameters
-const ARGON2_OPTS = { type: argon2.argon2id, memoryCost: 19_456, timeCost: 2, parallelism: 1 };
+const ARGON2_OPTS = {
+  type: argon2.argon2id,
+  memoryCost: 19_456,
+  timeCost: 2,
+  parallelism: 1,
+} as const;
 
 export interface AuthContext {
   userId: string;
@@ -15,6 +20,7 @@ export interface AuthContext {
 }
 
 const sha256 = (input: string) => createHash('sha256').update(input).digest('hex');
+
 
 export function signJwt(userId: string, plan: string): string {
   return jwt.sign({ sub: userId, plan }, config.JWT_SECRET, { expiresIn: '7d' });

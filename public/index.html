@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shortr — URL Shortener</title>
+<style>
+  :root { --bg:#0b1020; --card:#141b2e; --text:#e5e7eb; --muted:#94a3b8;
+          --accent:#6366f1; --accent2:#22d3ee; --border:#232d4a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text);
+         background:radial-gradient(1100px 550px at 15% -10%, #1e2650 0%, var(--bg) 55%);
+         min-height:100vh; padding:40px 16px; }
+  .wrap { max-width:760px; margin:0 auto; }
+  h1 { font-size:28px; } .sub { color:var(--muted); margin-bottom:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px;
+          padding:20px; margin-bottom:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+  input { width:100%; background:#0e1526; border:1px solid #2a3654; color:var(--text);
+          border-radius:9px; padding:11px 13px; font-size:14px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  .row { display:flex; gap:10px; }
+  button { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:0;
+           color:#fff; font-weight:600; border-radius:9px; padding:11px 16px;
+           cursor:pointer; font-size:14px; white-space:nowrap; }
+  button.ghost { background:transparent; border:1px solid #2a3654; color:var(--muted); }
+  button:hover { filter:brightness(1.15); }
+  .err { color:#f87171; font-size:13px; margin-top:8px; min-height:16px; }
+  .item { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid #1d2742; }
+  .item:first-child { border-top:0; }
+  .link { color:var(--accent2); font-weight:600; text-decoration:none; white-space:nowrap; }
+  .orig { color:var(--muted); font-size:13px; flex:1; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; }
+  .clicks { background:#1d2742; border-radius:999px; padding:3px 10px; font-size:12px; }
+  .hide { display:none; }
+  .logout { float:right; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔗 Shortr</h1>
+  <p class="sub">Distributed URL shortener — live demo dashboard</p>
+
+  <div id="auth" class="card hide">
+    <div class="row">
+      <input id="email" placeholder="email" autocomplete="username">
+      <input id="password" type="password" placeholder="password (min 8 chars)">
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="register">Create account</button>
+      <button id="login">Sign in</button>
+    </div>
+    <div class="err" id="authErr"></div>
+  </div>
+
+  <div id="app" class="hide">
+    <button id="logout" class="ghost logout">Log out</button>
+    <div class="card">
+      <div class="row">
+        <input id="url" placeholder="https://example.com/your/very/long/link">
+        <button id="create">Shorten</button>
+      </div>
+      <div class="err" id="createErr"></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between; margin-bottom:8px">
+        <b>Your links</b><button id="refresh" class="ghost">Refresh</button>
+      </div>
+      <div id="list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let token = localStorage.getItem('token') || null;
+  const $ = (id) => document.getElementById(id);
+
+  async function req(path, opts = {}) {
+    const res = await fetch(path, { ...opts,
+      headers: { 'Content-Type': 'application/json',
+                 ...(token ? { Authorization: 'Bearer ' + token } : {}) } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw { status: res.status, body };
+    return body;
+  }
+
+  function showAuth() { $('auth').classList.remove('hide'); $('app').classList.add('hide'); }
+  async function showApp() {
+    $('auth').classList.add('hide'); $('app').classList.remove('hide');
+    try { await loadUrls(); }
+    catch (e) { if (e.status === 401) { token = null; localStorage.removeItem('token'); showAuth(); } }
+  }
+
+  async function saveToken(b) { token = b.token; localStorage.setItem('token', token); showApp(); }
+  $('register').onclick = async () => { try { await saveToken(await req('/auth/register',
+    { method:'POST', body: JSON.stringify({ email:$('email').value, password:$('password').value }) })); }
+    catch (e) { $('authErr').textContent = e.body?.details?.[0]?.message || e.body?.error || 'Failed'; } };
+  $('login').onclick = async () => { try { await saveToken(await req('/auth/login',
+    { method:'POST', body: JSON.stringify({ email:$('email').value, password:$('password').value }) })); }
+    catch (e) { $('authErr').textContent = e.body?.error || 'Login failed'; } };
+  $('logout').onclick = () => { token = null; localStorage.removeItem('token'); showAuth(); };
+
+  $('create').onclick = async () => {
+    $('createErr').textContent = '';
+    try { await req('/api/urls', { method:'POST', body: JSON.stringify({ url:$('url').value }) });
+          $('url').value = ''; loadUrls(); }
+    catch (e) { $('createErr').textContent = e.body?.details?.[0]?.message || e.body?.error || 'Failed'; }
+  };
+
+  async function loadUrls() {
+    const b = await req('/api/urls');
+    $('list').innerHTML = b.items.map(i => `
+      <div class="item">
+        <a class="link" href="/${i.shortCode}" target="_blank">${location.origin}/${i.shortCode}</a>
+        <span class="orig" title="${i.originalUrl}">${i.originalUrl}</span>
+        <span class="clicks">${i.clicks} clicks</span>
+        <button class="ghost" onclick="navigator.clipboard.writeText('${location.origin}/${i.shortCode}')">Copy</button>
+      </div>`).join('') || '<p class="sub">No URLs yet — create one above.</p>';
+  }
+  $('refresh').onclick = loadUrls;
+
+  token ? showApp() : showAuth();
+</script>
+</body>
+</html>

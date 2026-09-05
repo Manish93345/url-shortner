@@ -8,20 +8,7 @@ export interface ShortUrl {
   createdAt: string;
 }
 
-// TEMPORARY (Phase 3 replaces this with real auth): all URLs owned by the
-// seeded dev user until JWT/API keys exist.
-let devUserId: string | null = null;
-async function getDevUserId(): Promise<string> {
-  if (!devUserId) {
-    const { rows } = await pool.query<{ id: string }>(
-      `SELECT id FROM users WHERE email = 'dev@localhost'`,
-    );
-    devUserId = rows[0].id;
-  }
-  return devUserId;
-}
-
-export async function createShortUrl(originalUrl: string): Promise<ShortUrl> {
+export async function createShortUrl(originalUrl: string, userId: string): Promise<ShortUrl> {
   const id = await idGenerator.nextId();
   const shortCode = encodeBase62(id);
 
@@ -33,7 +20,7 @@ export async function createShortUrl(originalUrl: string): Promise<ShortUrl> {
     `INSERT INTO urls (id, short_code, original_url, user_id)
      VALUES ($1, $2, $3, $4)
      RETURNING short_code, original_url, created_at`,
-    [id.toString(), shortCode, originalUrl, userId], // BigInt → string for pg
+    [id.toString(), shortCode, originalUrl, userId],
   );
 
   const row = rows[0];
