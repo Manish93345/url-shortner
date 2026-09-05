@@ -424,14 +424,12 @@ function renderStats() {
 }
  $('refreshBtn').onclick = loadUrls;
 
-/* live polling — pause when tab is hidden */
 setInterval(() => {
   if (token && document.visibilityState === 'visible' && !$('viewDash').classList.contains('hidden')) {
     loadUrls();
   }
 }, 8000);
 
-/* ---------------- QR ---------------- */
 function openQr(url) {
   if (typeof QRCode === 'undefined') { toast('QR library unavailable (CDN blocked)', true); return; }
   $('qrText').textContent = url;
@@ -443,7 +441,6 @@ function openQr(url) {
  $('qrClose').onclick = () => $('qrModal').classList.add('hidden');
  $('qrModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) $('qrModal').classList.add('hidden'); });
 
-/* ---------------- health badge ---------------- */
 async function checkHealth() {
   const dot = $('healthDot'), txt = $('healthText');
   try {
@@ -460,7 +457,6 @@ async function checkHealth() {
 }
 setInterval(checkHealth, 15000);
 
-/* ---------------- boot ---------------- */
 checkHealth();
 token ? showDash() : showAuth();
 </script>
